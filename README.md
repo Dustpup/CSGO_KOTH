@@ -1,2 +1,2 @@
-# CSGO_KOTH
-King Of The Hill GameMode For Counter Strike Global Offensive 
+# Counter Strike Global Offensive: King Of The Hill
+Simple Gamemode for Counter strike
