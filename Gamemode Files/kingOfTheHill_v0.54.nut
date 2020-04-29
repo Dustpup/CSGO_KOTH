@@ -29,11 +29,12 @@
 ///    HHH    HHH    III    LLLLLLL    LLLLLLLLL .......0000000000000000000000000000000000000000............//
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-debug_script <- false;
+debug_script <- true;
 
 game_t_onHillCount   <- 0;
 game_ct_onHillCount  <- 0;
 game_counter         <- 0;
+game_counter_mult    <- 0;
 
 game_timer_counter   <- null;
 game_timer_round     <- null;
@@ -58,12 +59,12 @@ const GAME_MIN_NEUTRAL         = -10;
 const GAME_MAX_NEUTRAL         = 10;
 const GAME_TRIGGER_VARS = "43726561746564204279204272616E646F6E20542E20436F6F6B20414B41205B445553545055505D";
 
-const MAP_RELAY_T_TAKE    = "hill_terrorist";
-const MAP_RELAY_CT_TAKE   = "hill_ct";
-const MAP_RELAY_N_TAKE    = "hill_neut";
-const MAP_END_ROUND_ENT   = "captured_the_hill";
-const MAP_GAME_TIMER      = "game_timer";
-const MAP_GAME_COUNTER    = "hill_timer";
+MAP_RELAY_T_TAKE    <- "hill_terrorist";
+MAP_RELAY_CT_TAKE   <- "hill_ct";
+MAP_RELAY_N_TAKE    <- "hill_neut";
+MAP_END_ROUND_ENT   <- "captured_the_hill";
+MAP_GAME_TIMER      <- "game_timer";
+MAP_GAME_COUNTER    <- "hill_timer";
 
 WEAPON_LOADOUT <- {};
 SPAWN_COLLECTION <- [];
@@ -123,12 +124,13 @@ function OnPostSpawn()
 // Script logic_script OnThink
 function GameThink()
 {
+	
 	// is not in warmup or running after end of round
 	if(!game_isWarmup && !game_hasGameEnded)
 	{
 		// Measure hill count
-		game_counter = game_ct_onHillCount - game_t_onHillCount;
-		
+		game_counter_mult = game_ct_onHillCount - game_t_onHillCount;
+		DEBUG_Write(game_counter);
 		// Check for a mixed hill of t's and ct's
 		if(game_ct_onHillCount > 0 && game_t_onHillCount > 0)
 		{
@@ -141,7 +143,7 @@ function GameThink()
 		
 		// Start Game Logic. See if anyone is on the hill trigger.
 		if((game_ct_onHillCount > 0 || game_t_onHillCount > 0)
-		&& game_counter != 0)
+		&& game_counter_mult != 0)
 		{
 				// Start Timer If SomeOne Is On The Hill
 				if(!game_isGameCounterRuning)
@@ -150,21 +152,20 @@ function GameThink()
 					game_isGameCounterRuning = true;
 				}
 				
-				if(game_counter >= GAME_TERRORIST_TAKE && !game_t_win)
+				if(game_counter <= GAME_TERRORIST_TAKE && !game_t_win)
 				{
 					Game_TakeHill_T();
 				}
 				
-				if(game_counter <= GAME_C_TERRORIST_TAKE && !game_ct_win)
+				if(game_counter >= GAME_C_TERRORIST_TAKE && !game_ct_win)
 				{
-					Game_TakeHill_T();
+					Game_TakeHill_CT();
 				}
 				
 				if(game_counter >= GAME_MIN_NEUTRAL &&
-				game_counter <= GAME_MAX_NEUTRAL &&
-				(game_ct_win||game_t_win))
+				game_counter <= GAME_MAX_NEUTRAL && (game_ct_win||game_t_win))
 				{
-					Game_TakeHill_T();
+					Game_NeutralizeHill();
 				}
 				
 		}
@@ -187,15 +188,15 @@ function GameThink()
 			
 			if(game_ct_win) 
 			{
-				EntFire(MAP_END_ROUND_ENT,"","",0);
+				EntFire(MAP_END_ROUND_ENT,"EndRound_CounterTerroristsWin","7",0);
 			}
 			if(game_t_win)
 			{
-				EntFire(MAP_END_ROUND_ENT,"","",0);
+				EntFire(MAP_END_ROUND_ENT,"EndRound_TerroristsWin","7",0);
 			}
-			if(!game_ct_win && game_t_win)
+			if(!game_ct_win && !game_t_win)
 			{
-				EntFire(MAP_END_ROUND_ENT,"","",0);
+				EntFire(MAP_END_ROUND_ENT,"EndRound_Draw","7",0);
 			}
 		}
 		
@@ -258,7 +259,7 @@ function OnRoundEnd()
 // Setup The Game Spawns with special requirements/
 function Game_SetupSpawnPoint()
 {
-	local ent <- null;
+	//local ent <- null;
 	
 	//while(( ent = Entities.FindByName( ent )))
 	//{
@@ -277,14 +278,14 @@ function Game_SetupLoadOuts()
 function Game_StartTimer()
 {
     DEBUG_Write("HillCounter Started!");
-	EntFire(HILL_COUNTER_TIMER, "Enable", "",0);
+	EntFire(MAP_GAME_COUNTER, "Enable", "",0);
 }
 
 // Stop The Hill Counter
 function Game_StopTimer()
 {
 	DEBUG_Write("HillCounter Stopped!");
-	EntFire(HILL_COUNTER_TIMER, "Disable", "",0);
+	EntFire(MAP_GAME_COUNTER, "Disable", "",0);
 }
 
 // On Hill Timer Fired
@@ -292,7 +293,7 @@ function Game_Event_OnTimer()
 {
 	if(!game_isWarmup && !game_hasGameEnded)
 	{
-		mp_gameCounter += mp_countMul;
+		game_counter += game_counter_mult;
 	}
 }
 
@@ -334,9 +335,11 @@ function Game_RemoveFromHill_CT()
 // Set Game Win Conditions Towards Terrorist
 function Game_TakeHill_T()
 {
-    game_ct_win = false;
+    game_ct_win = false; 
     game_t_win = true;
 	EntFire(MAP_RELAY_T_TAKE,"Trigger","",0);
+	
+	DEBUG_Write("T TAKE HILL");
 }
 
 // Set Game Win Conditions Towards Counter Terrorist.
@@ -345,6 +348,8 @@ function Game_TakeHill_CT()
     game_ct_win = true;
     game_t_win = false;
 	EntFire(MAP_RELAY_CT_TAKE,"Trigger","",0);
+	
+	DEBUG_Write("CT TAKE HILL");
 }
 
 // Set Game Win Conditions Towards Draw. 
@@ -353,6 +358,8 @@ function Game_NeutralizeHill()
 	game_ct_win = false;
     game_t_win  = false;
 	EntFire(MAP_RELAY_N_TAKE,"Trigger","",0);
+	
+	DEBUG_Write("N TAKE HILL");
 }
 
 //write a line to console if in debug mode.
